@@ -19,7 +19,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class PascalVOC(Dataset):
     def __init__(self, root, split, image_size=224, mask_size = 224):
-        assert split in ['trainaug', 'val']
+        assert split in ['trainaug', 'val',"val_viz"]
         imglist_fp = os.path.join(root, 'ImageSets/Segmentation', split+'.txt')
         self.imglist = self.read_imglist(imglist_fp)
 
@@ -48,18 +48,35 @@ class PascalVOC(Dataset):
 
         imgname = self.imglist[idx]
         img_fp = os.path.join(self.root, 'JPEGImages', imgname) + '.jpg'
+        # img_fp = os.path.join("/data1/ysj/VOCdevkit/stage1_fg", imgname) + '.jpg'
         mask_fp_class = os.path.join(self.root, 'SegmentationClass', imgname) + '.png'
         mask_fp_instance = os.path.join(self.root, 'SegmentationObject', imgname) + '.png'
 
         img = Image.open(img_fp)
 
-        if self.split=='trainaug':
-            
+        if self.split=='trainaug':           
             img = self.train_transform(img)
             
             return img
    
         elif self.split=='val':
+            
+            mask_class    = Image.open(mask_fp_class)
+            mask_instance = Image.open(mask_fp_instance)
+            
+            img = self.val_transform_image(img)
+            
+            mask_class = self.val_transform_mask(mask_class).squeeze().long()
+            mask_class[mask_class==255]=0 # Ignore objects' boundaries
+
+            mask_instance = self.val_transform_mask(mask_instance).squeeze().long()
+            mask_instance[mask_instance==255]=0 # Ignore objects' boundaries
+            
+            ignore_mask = torch.zeros((1,self.mask_size,self.mask_size), dtype=torch.long) # There is no overlapping in VOC
+
+            return img, mask_instance, mask_class, ignore_mask
+        
+        elif self.split=='val_viz':
             
             mask_class    = Image.open(mask_fp_class)
             mask_instance = Image.open(mask_fp_instance)
@@ -82,6 +99,8 @@ class PascalVOC(Dataset):
             mask_instance = Image.open(mask_fp_instance)
             
             return img, mask_instance.long(), mask_instance.squeeze()
+        
+
 
 
     def __len__(self):

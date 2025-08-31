@@ -1,6 +1,5 @@
-''' Based on SLATE and OCLF libraries:
-https://github.com/singhgautam/slate/blob/master/utils.py
-https://github.com/amazon-science/object-centric-learning-framework/blob/main/ocl/utils/masking.py
+''' Copied from SPOT libraries:
+https://github.com/gkakogeorgiou/spot.git
 '''
 import math
 import random

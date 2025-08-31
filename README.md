@@ -13,14 +13,13 @@ The extended version has been submitted to the International Journal of Computer
 
 ---
 
-## News
-⚠️ **Status**: This repository is **under active development**.  The current release is **not the full version**. More code will be released gradually.
 
 
 
 ## Contents
 
 - [Installation](#installation)
+- [Dataset](#Dataset)
 - [Training](#training)
 - [Evaluation](#evaluation)
 
@@ -31,9 +30,9 @@ The extended version has been submitted to the International Journal of Computer
 ## Installation
 
 ```bash
-conda create -n spot python=3.9.16
+conda create -n CTFBTP python=3.9.16
 
-conda activate spot
+conda activate CTFBTP
 
 pip install -r requirements.txt
 ```
@@ -42,6 +41,35 @@ pip install -r requirements.txt
 
 ---
 
+## Dataset Preparation
+
+### COCO
+Download COCO dataset (`2017 Train images`,`2017 Val images`,`2017 Train/Val annotations`) from [here](https://cocodataset.org/#download) and place them following this structure:
+```bash
+COCO2017
+   ├── annotations
+   ├── train2017
+   └── val2017
+```
+
+### PASCAL VOC 2012
+
+Download PASCAL VOC 2012 dataset from `http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar`, extract the files and copy `trainaug.txt` in `VOCdevkit/VOC2012/ImageSets/Segmentation`. The final structure should be the following:
+
+```bash
+VOCdevkit
+   └── VOC2012
+          ├── ImageSets
+          │      └── Segmentation
+          │             ├── trainaug.txt
+          │             └── ... 
+          │             
+          ├── JPEGImages
+          ├── SegmentationClass
+          └── SegmentationObject
+```
+### MOVi-C/E
+It seems that the commonly used MOVi download site has been closed. We will organize the dataset and upload it later.
 
 
 

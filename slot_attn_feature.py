@@ -57,8 +57,16 @@ class SlotAttention(nn.Module):
         inputs = self.norm_inputs(inputs)
         k = self.project_k(inputs).view(B, N_kv, self.num_heads, -1).transpose(1, 2)    # Shape: [batch_size, num_heads, num_inputs, slot_size // num_heads].
         v = self.project_v(inputs).view(B, N_kv, self.num_heads, -1).transpose(1, 2)    # Shape: [batch_size, num_heads, num_inputs, slot_size // num_heads].
-        k = ((self.slot_size // self.num_heads) ** (-0.5)) * k
         
+        
+        batch_size,_,num_inputs,slots_size = k.shape
+        H = W = int(num_inputs ** 0.5)
+        k_1 = k.clone()
+        # k_1 = k_1.squeeze(1).permute(0, 2, 1)
+        k_1 = k_1.view(batch_size, slots_size, H, W)
+        score = torch.einsum('bkd,bdhw->bkhw',F.normalize(slots,dim = 2),F.normalize(k_1,dim=1)) # shape [b,numslot,h,w]
+
+        k = ((self.slot_size // self.num_heads) ** (-0.5)) * k
         # Multiple rounds of attention.
         for i in range(self.num_iter):
             if i == self.num_iter  - 1:
@@ -72,29 +80,35 @@ class SlotAttention(nn.Module):
             # Attention.
             q = self.project_q(slots).view(B, N_q, self.num_heads, -1).transpose(1, 2)  # Shape: [batch_size, num_heads, num_slots, slot_size // num_heads].
             attn_logits = torch.matmul(k, q.transpose(-1, -2))                          # Shape: [batch_size, num_heads, num_inputs, num_slots].
+            # q [128,1,7,256],k_1(128,256,14,14)
+
+            attn_logits_softmax = torch.softmax(attn_logits, dim=-1)
+            
+            attn_logits = attn_logits.masked_fill(attn_logits == 0, float('-inf'))
             attn = F.softmax(
                 attn_logits.transpose(1, 2).reshape(B, N_kv, self.num_heads * N_q)
             , dim=-1).view(B, N_kv, self.num_heads, N_q).transpose(1, 2)                # Shape: [batch_size, num_heads, num_inputs, num_slots].
+            # attn_1 = attn*mask.float()
+            attn = torch.nan_to_num(attn, nan=0.0)
             attn_vis = attn.sum(1)                                                      # Shape: [batch_size, num_inputs, num_slots].
+            # attn_vis = attn.squeeze(1)  
+
             
             # Weighted mean.
-            attn = attn + self.epsilon
+
             attn = attn / torch.sum(attn, dim=-2, keepdim=True)
             updates = torch.matmul(attn.transpose(-1, -2), v)                           # Shape: [batch_size, num_heads, num_slots, slot_size // num_heads].
             updates = updates.transpose(1, 2).reshape(B, N_q, -1)                       # Shape: [batch_size, num_slots, slot_size].
             
-            # Slot update.
-            slots = self.gru(updates.view(-1, self.slot_size),
-                             slots_prev.view(-1, self.slot_size))
-            slots = slots.view(-1, N_q, self.slot_size)
+            slots = slots_prev + updates
             slots = slots + self.mlp(self.norm_mlp(slots))
         
-        return slots, attn_vis, attn_logits ,attn
+        return slots, attn_vis, attn_logits, score,k
 
 class SlotAttentionEncoder(nn.Module):
     
     def __init__(self, num_iterations, num_slots,
-                 input_channels, slot_size, mlp_hidden_size, pos_channels, truncate='bi-level', init_method='embedding', num_heads = 1, drop_path = 0.0):
+                 input_channels,slot_size, mlp_hidden_size, pos_channels, truncate='bi-level', init_method='embedding',num_heads = 1, drop_path = 0.0,):
         super().__init__()
         
         self.num_iterations = num_iterations
@@ -104,6 +118,8 @@ class SlotAttentionEncoder(nn.Module):
         self.mlp_hidden_size = mlp_hidden_size
         self.pos_channels = pos_channels
         self.init_method = init_method
+        self.projector_x = linear(input_channels, slot_size, bias=False)
+        self.project_slot = linear(slot_size, slot_size, bias=False)
 
         self.layer_norm = nn.LayerNorm(input_channels)
         self.mlp = nn.Sequential(
@@ -111,7 +127,7 @@ class SlotAttentionEncoder(nn.Module):
             nn.ReLU(),
             linear(input_channels, input_channels))
         
-        assert init_method in ['shared_gaussian', 'embedding']
+        assert init_method in ['shared_gaussian', 'embedding','mu_embedding']
         if init_method == 'shared_gaussian':
             # Parameters for Gaussian init (shared by all slots).
             self.slot_mu = nn.Parameter(torch.zeros(1, 1, slot_size))
@@ -121,6 +137,9 @@ class SlotAttentionEncoder(nn.Module):
         elif init_method == 'embedding':
             self.slots_init = nn.Embedding(num_slots, slot_size)
             nn.init.xavier_uniform_(self.slots_init.weight)
+        elif init_method == 'mu_embedding':
+            self.slots_mu = nn.Parameter(torch.randn(1,num_slots, slot_size))
+
         else:
             raise NotImplementedError
         
@@ -131,20 +150,25 @@ class SlotAttentionEncoder(nn.Module):
     def forward(self, x):
         # `image` has shape: [batch_size, img_channels, img_height, img_width].
         # `encoder_grid` has shape: [batch_size, pos_channels, enc_height, enc_width].
-        B, *_ = x.size()
+        B, N, _ = x.size()
         dtype = x.dtype
         device = x.device
         x = self.mlp(self.layer_norm(x))
         # `x` has shape: [batch_size, enc_height * enc_width, cnn_hidden_size].
 
         # Slot Attention module.
-        init_slots = self.slots_initialization(B, dtype, device)
+        if self.init_method == 'mu_embedding':
+            init_slots = self.slots_mu.expand(B, -1, -1)
+        else:
+            init_slots = self.slots_initialization(B, dtype, device)
 
-        slots, attn, attn_logits, attn_2 = self.slot_attention(x, init_slots)
+        
+
+        slots, attn, attn_logits, score,imputs_mlp = self.slot_attention(x, init_slots)
         # `slots` has shape: [batch_size, num_slots, slot_size].
         # `attn` has shape: [batch_size, enc_height * enc_width, num_slots].
         
-        return slots, attn, init_slots, attn_logits, attn_2
+        return slots, attn, init_slots, attn_logits, score,imputs_mlp
     
     def slots_initialization(self, B, dtype, device):
         # The first frame, initialize slots.
@@ -152,6 +176,7 @@ class SlotAttentionEncoder(nn.Module):
             slots_init = torch.empty((B, self.num_slots, self.slot_size), dtype=dtype, device=device).normal_()
             slots_init = self.slot_mu + torch.exp(self.slot_log_sigma) * slots_init
         elif self.init_method == 'embedding':
-            slots_init = self.slots_init.weight.expand(B, -1, -1).contiguous()
+
+            slots_init = self.slots_init(torch.arange(0, self.num_slots, device=device)).unsqueeze(0).repeat(B, 1, 1)
         
         return slots_init

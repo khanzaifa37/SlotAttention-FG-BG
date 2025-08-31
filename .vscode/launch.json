@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "/home/ysj/miniconda3/envs/spot/bin/python3",
+            "program": "${file}",
+            "console": "integratedTerminal",
+
+            "args": [
+                "--dataset",
+                "voc",
+                "--data_path",
+                "/data1/ysj/VOCdevkit/VOC2012",
+                "--num_slots","6",
+                "--train_permutations","standard",
+                "--log_path","/data1/ysj/tpami/tpami-spot/logs/ours_spot-voc",
+                "--teacher_checkpoint_path","/home/ysj/spot0/spot-master/voc_stage1/checkpoint.pt.tar",
+                "--teacher_init_method","mu_embedding",
+                "--teacher_train_permutations","standard",
+                "--init_method","shared_gaussian",
+                "--checkpoint_path","/home/ysj/spot0/spot-master/spot_voc_checkpoint.pt.tar",
+                "--use_second_encoder","False",
+                "--device",
+                "2",
+
+            ]
+        }
+    ]
+}
