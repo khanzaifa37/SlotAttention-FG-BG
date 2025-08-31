@@ -8,7 +8,7 @@ The extended version has been submitted to the International Journal of Computer
 
 
 <div align="center">
-  <img width="100%" alt=" illustration" src="/home/ysj/ijcv/spot/.github/method.png">
+  <img width="100%" alt=" illustration" src=".github/method.png">
 </div>
 
 ---
