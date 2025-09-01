@@ -4,7 +4,6 @@
 
 This repository contains the official implementation of our work, which is an extension of 
 [CVPR 2025: Pay Attention to the Foreground in Object-Centric Learning]. 
-The extended version has been submitted to the International Journal of Computer Vision (IJCV).
 
 
 <div align="center">
