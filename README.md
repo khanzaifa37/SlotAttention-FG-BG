@@ -5,6 +5,11 @@
 This repository contains the official implementation of our work, which is an extension of 
 [CVPR 2025: Pay Attention to the Foreground in Object-Centric Learning]. 
 
+The differences from CVPR are as follows:  
+
+1. **Language injection**: We replace the original feature fusion with slot fusion, i.e., the *ContextFusion* stage.  
+2. **Encoder part**: We introduce a feature-adaptive layer after the encoder to mitigate the impact of directly modifying the encoder, i.e., the *Bootstrap Branch*.  
+
 
 <div align="center">
   <img width="100%" alt=" illustration" src=".github/method.png">
