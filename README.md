@@ -1,4 +1,5 @@
 ## ContextFusion and Bootstrap: An Effective Approach to Improve Slot Attention-Based Object-Centric Learning
+[📄 arXiv:2509.02032](https://arxiv.org/abs/2509.02032)
 
 ---
 
@@ -7,7 +8,7 @@ This repository contains the official implementation of our work, which is an ex
 
 The differences from CVPR are as follows:  
 
-1. **Language injection**: We replace the original feature fusion with slot fusion, i.e., the *ContextFusion* stage.  
+1. **Fusion part**: We replace the original feature fusion with slot fusion, i.e., the *ContextFusion* stage.  
 2. **Encoder part**: We introduce a feature-adaptive layer after the encoder to mitigate the impact of directly modifying the encoder, i.e., the *Bootstrap Branch*.  
 
 
