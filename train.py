@@ -7,6 +7,8 @@ import os
 import os.path
 import argparse
 import sys
+import tempfile
+import zipfile
 from tqdm import tqdm
 from datetime import datetime
 import copy
@@ -56,6 +58,20 @@ def resolve_device(device_arg):
         return torch.device(f'cuda:{device_arg}')
 
     raise ValueError(f'Unsupported device value: {device_arg}')
+
+
+def load_checkpoint(path, map_location='cpu'):
+    if os.path.isdir(path):
+        with tempfile.NamedTemporaryFile(suffix='.pt') as tmp_file:
+            with zipfile.ZipFile(tmp_file.name, mode='w', compression=zipfile.ZIP_STORED) as archive:
+                for root, _, files in os.walk(path):
+                    for filename in sorted(files):
+                        full_path = os.path.join(root, filename)
+                        archive_name = os.path.relpath(full_path, path)
+                        archive.write(full_path, archive_name)
+            return torch.load(tmp_file.name, map_location=map_location)
+
+    return torch.load(path, map_location=map_location)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('SPOT (2)', add_help=False)
@@ -256,7 +272,7 @@ def train(args):
     teacher_model = Indicator(encoder, args_teacher)
     
 
-    checkpoint = torch.load(args.teacher_checkpoint_path, map_location='cpu')
+    checkpoint = load_checkpoint(args.teacher_checkpoint_path, map_location='cpu')
     checkpoint['model'] = {k.replace("tf_dec.", "dec."): v for k, v in checkpoint['model'].items()} # compatibility with older runs
     teacher_model.load_state_dict(checkpoint['model'], strict = True)
     teacher_model = teacher_model.to(device).eval()
@@ -266,7 +282,7 @@ def train(args):
     # print(msg)
 
     if os.path.isfile(args.checkpoint_path):
-        checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
+        checkpoint = load_checkpoint(args.checkpoint_path, map_location='cpu')
         start_epoch = 0
         best_val_loss = math.inf
         best_epoch = 0
