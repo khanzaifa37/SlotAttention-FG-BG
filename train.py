@@ -155,6 +155,7 @@ def get_args_parser():
     parser.add_argument('--final_ce_weight', type=float, default=None, help='final weight of the cross-entropy distilation loss')
     
     parser.add_argument('--teacher_checkpoint_path', help='teacher checkpoint')
+    parser.add_argument('--teacher_free_smoke_test', type=bool_flag, default=False, help='Run without loading a teacher checkpoint by using student slots as a fallback')
     parser.add_argument('--teacher_truncate',  type=str, default = 'bi-level')
     parser.add_argument('--teacher_init_method',  type=str, default = 'mu_embedding')
     parser.add_argument('--teacher_train_permutations',  type=str, default='standard', help='which permutation')
@@ -260,28 +261,32 @@ def train(args):
     
 
     student_model = SPOT(encoder, encoder_s,args, encoder_second)
-
     
-    args_teacher = copy.deepcopy(args)
-    args_teacher.truncate = args.teacher_truncate
-    args_teacher.init_method = args.teacher_init_method
-    args_teacher.train_permutations = args.teacher_train_permutations
-    args_teacher.eval_permutations = args.teacher_eval_permutations
-    args_teacher.finetune_blocks_after = 100
-    args_teacher.num_slots = 2
+    teacher_model = None
+    if args.teacher_free_smoke_test:
+        print('Running in teacher-free smoke test mode.')
+    else:
+        if not args.teacher_checkpoint_path:
+            raise ValueError('Please provide --teacher_checkpoint_path, or set --teacher_free_smoke_test true for a smoke test.')
 
-    
-    teacher_model = Indicator(encoder, args_teacher)
-    
+        args_teacher = copy.deepcopy(args)
+        args_teacher.truncate = args.teacher_truncate
+        args_teacher.init_method = args.teacher_init_method
+        args_teacher.train_permutations = args.teacher_train_permutations
+        args_teacher.eval_permutations = args.teacher_eval_permutations
+        args_teacher.finetune_blocks_after = 100
+        args_teacher.num_slots = 2
 
-    checkpoint = load_checkpoint(args.teacher_checkpoint_path, map_location='cpu')
-    checkpoint['model'] = {k.replace("tf_dec.", "dec."): v for k, v in checkpoint['model'].items()} # compatibility with older runs
-    teacher_model.load_state_dict(checkpoint['model'], strict = True)
-    teacher_model = teacher_model.to(device).eval()
+        teacher_model = Indicator(encoder, args_teacher)
 
-    for param in teacher_model.parameters():
-        param.requires_grad = False  # not update by gradient
-    # print(msg)
+        checkpoint = load_checkpoint(args.teacher_checkpoint_path, map_location='cpu')
+        checkpoint['model'] = {k.replace("tf_dec.", "dec."): v for k, v in checkpoint['model'].items()} # compatibility with older runs
+        teacher_model.load_state_dict(checkpoint['model'], strict = True)
+        teacher_model = teacher_model.to(device).eval()
+
+        for param in teacher_model.parameters():
+            param.requires_grad = False  # not update by gradient
+        # print(msg)
 
     if os.path.isfile(args.checkpoint_path):
         checkpoint = load_checkpoint(args.checkpoint_path, map_location='cpu')
@@ -315,7 +320,6 @@ def train(args):
         best_miou_slot= 0
     
 
-    teacher_model = teacher_model.to(device).eval()
     student_model = student_model.to(device).train()
     
     lr_schedule = cosine_scheduler( base_value = args.lr_main,
@@ -351,7 +355,16 @@ def train(args):
     ari_slot_metric = ARIMetric(foreground = True, ignore_overlaps = True).to(device)
     
     
-    teacher_model.eval()
+    def get_teacher_targets(image):
+        if teacher_model is not None:
+            return teacher_model.forward_eval(image)
+
+        emb_input_student = student_model.forward_encoder(image, student_model.encoder)
+        slots_student, _, _, _, _ = student_model.slot_attn(emb_input_student)
+        return emb_input_student.detach(), None, slots_student.detach(), None, None, None
+
+    if teacher_model is not None:
+        teacher_model.eval()
 
     for epoch in range(start_epoch, args.epochs):
         student_model.train()
@@ -368,7 +381,7 @@ def train(args):
             optimizer.zero_grad()
         
             with torch.no_grad():
-                emb_input_teacher,default_slots_attns_teacher, slots_teacher, attn_logits_teacher,emb_input_mlp_teacher,property_mean_teacher = teacher_model.forward_eval(image)
+                emb_input_teacher,default_slots_attns_teacher, slots_teacher, attn_logits_teacher,emb_input_mlp_teacher,property_mean_teacher = get_teacher_targets(image)
             
             
             loss_mse , loss_map,dec_slots_attns, _, _= student_model.forward_ours_stage2(image,emb_input_teacher,slots_teacher)
@@ -404,7 +417,7 @@ def train(args):
                 batch_size = image.shape[0]
                 counter += batch_size
 
-                emb_input_teacher,default_slots_attns_teacher, slots_teacher, attn_logits_teacher,emb_input_mlp_teacher,property_mean_teacher = teacher_model.forward_eval(image)
+                emb_input_teacher,default_slots_attns_teacher, slots_teacher, attn_logits_teacher,emb_input_mlp_teacher,property_mean_teacher = get_teacher_targets(image)
 
                 mse,  dec_slots_attns, _, _ ,gamma,beta= student_model.forward_ours_eval(image,emb_input_teacher,slots_teacher)
                 
