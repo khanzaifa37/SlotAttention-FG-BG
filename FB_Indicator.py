@@ -5,6 +5,7 @@ from mlp import MlpDecoder
 import torch
 import random
 import math
+import copy
 # from data.transforms import CustomDataAugmentation
 import torchvision
 
@@ -48,7 +49,7 @@ class Indicator(nn.Module):
 
         self.which_encoder = args.which_encoder
         self.encoder_s = encoder
-        self.encoder_t = encoder
+        self.encoder_t = copy.deepcopy(encoder)
 
         self.second_encoder = second_encoder
         self.encoder_final_norm = args.encoder_final_norm

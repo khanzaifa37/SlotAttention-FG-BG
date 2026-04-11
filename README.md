@@ -122,6 +122,18 @@ Example Colab command:
 python train.py --dataset voc --data_path /content/drive/MyDrive/VOCdevkit/VOC2012 --num_slots 6 --epochs 100 --init_method shared_gaussian --train_permutations standard --teacher_checkpoint_path /content/drive/MyDrive/checkpoints/teacher.pt --log_path /content/drive/MyDrive/contextfusion_logs --checkpoint_path /content/drive/MyDrive/checkpoints/student_resume.pt --device auto
 ```
 
+### Teacher Training
+
+The stage-1 foreground/background teacher can be trained with `train_teacher.py`. This script builds the paired crop augmentation required by `Indicator` and saves checkpoints with a `model` key so they can later be used with `--teacher_checkpoint_path`.
+
+Example smoke test on a mini COCO subset:
+
+```bash
+python train_teacher.py --dataset coco --data_path /content/drive/MyDrive/COCO2017_mini --epochs 1 --batch_size 2 --eval_batch_size 2 --num_workers 0 --log_path /content/drive/MyDrive/indicator_logs_smoketest --device auto
+```
+
+Once this produces a checkpoint, use the resulting `best_model.pt` or `checkpoint.pt.tar` path as `--teacher_checkpoint_path` for `train.py`.
+
 
 
 ### Evaluation(Using the DINOSAUR on the VOC dataset as an example.)

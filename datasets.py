@@ -3,6 +3,7 @@ import glob
 import json
 import random
 import numpy as np
+from dataclasses import dataclass
 from pathlib import Path
 from PIL import Image, ImageFile
 
@@ -13,8 +14,82 @@ import torchvision.transforms.functional as TF
 
 from pycocotools import mask
 from pycocotools.coco import COCO
+from utils_spot import GaussianBlur
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+
+@dataclass
+class TeacherView:
+    crop: torch.Tensor
+    coords: torch.Tensor
+    flipped: torch.Tensor
+
+
+class TeacherPairAugmentation:
+    def __init__(self, image_size=224, min_scale=0.08, max_scale=1.0):
+        self.image_size = image_size
+        self.scale = (min_scale, max_scale)
+        self.ratio = (3.0 / 4.0, 4.0 / 3.0)
+        self.color_jitter = transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)
+        self.blur = GaussianBlur(p=1.0)
+        self.to_tensor = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+
+    def _make_view(self, image):
+        width, height = image.size
+        top, left, crop_h, crop_w = transforms.RandomResizedCrop.get_params(
+            image, scale=self.scale, ratio=self.ratio
+        )
+
+        crop = TF.resized_crop(
+            image,
+            top=top,
+            left=left,
+            height=crop_h,
+            width=crop_w,
+            size=(self.image_size, self.image_size),
+            interpolation=transforms.InterpolationMode.BILINEAR,
+        )
+
+        flipped = False
+        if random.random() < 0.5:
+            crop = TF.hflip(crop)
+            flipped = True
+
+        if random.random() < 0.8:
+            crop = self.color_jitter(crop)
+        if random.random() < 0.2:
+            crop = TF.rgb_to_grayscale(crop, num_output_channels=3)
+        if random.random() < 0.5:
+            crop = self.blur(crop)
+
+        coords = torch.tensor(
+            [
+                left / width,
+                top / height,
+                (left + crop_w) / width,
+                (top + crop_h) / height,
+            ],
+            dtype=torch.float32,
+        )
+
+        return TeacherView(
+            crop=self.to_tensor(crop),
+            coords=coords,
+            flipped=torch.tensor(flipped, dtype=torch.bool),
+        )
+
+    def __call__(self, image):
+        view_1 = self._make_view(image)
+        view_2 = self._make_view(image)
+        return (
+            (view_1.crop, view_2.crop),
+            (view_1.coords, view_2.coords),
+            (view_1.flipped, view_2.flipped),
+        )
 
 
 class PascalVOC(Dataset):
@@ -112,6 +187,27 @@ class PascalVOC(Dataset):
             for line in fd:
                 ll.append(line.strip())
         return ll
+
+
+class PascalVOCTeacher(Dataset):
+    def __init__(self, root, split='trainaug', image_size=224, min_scale=0.08):
+        assert split in ['trainaug', 'val']
+        imglist_fp = os.path.join(root, 'ImageSets/Segmentation', split + '.txt')
+        self.imglist = []
+        with open(imglist_fp, 'r') as fd:
+            for line in fd:
+                self.imglist.append(line.strip())
+        self.root = root
+        self.transform = TeacherPairAugmentation(image_size=image_size, min_scale=min_scale)
+
+    def __len__(self):
+        return len(self.imglist)
+
+    def __getitem__(self, idx):
+        imgname = self.imglist[idx]
+        img_fp = os.path.join(self.root, 'JPEGImages', imgname) + '.jpg'
+        img = Image.open(img_fp).convert('RGB')
+        return self.transform(img)
 
 
 class COCO2017(Dataset):
@@ -235,6 +331,27 @@ class COCO2017(Dataset):
 
     def __len__(self):
         return len(self.ids)
+
+
+class COCO2017Teacher(Dataset):
+    def __init__(self, root, split='train', year='2017', image_size=224, min_scale=0.08):
+        ann_file = os.path.join(root, 'annotations/instances_{}{}.json'.format(split, year))
+        self.img_dir = os.path.join(root, '{}{}'.format(split, year))
+        if not os.path.isdir(self.img_dir):
+            self.img_dir = os.path.join(root, 'images', '{}{}'.format(split, year))
+            assert os.path.isdir(self.img_dir)
+        self.coco = COCO(ann_file)
+        self.ids = list(self.coco.imgs.keys())
+        self.transform = TeacherPairAugmentation(image_size=image_size, min_scale=min_scale)
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, index):
+        img_id = self.ids[index]
+        img_metadata = self.coco.loadImgs(img_id)[0]
+        image = Image.open(os.path.join(self.img_dir, img_metadata['file_name'])).convert('RGB')
+        return self.transform(image)
 
 
 class MOVi(Dataset):
