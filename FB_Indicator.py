@@ -421,6 +421,7 @@ class Indicator(nn.Module):
 
         return  torch.stack((prototype_fg, prototype_bg), dim=1).squeeze(2)
     
+    @staticmethod
     def compute_differ_loss(attn_logits, num_slots):
         attn = attn_logits.squeeze(1).softmax(dim=-1) + 1e-8   
         attn = F.normalize(attn, dim=-2)                       
