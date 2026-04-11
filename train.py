@@ -64,10 +64,12 @@ def load_checkpoint(path, map_location='cpu'):
     if os.path.isdir(path):
         with tempfile.NamedTemporaryFile(suffix='.pt') as tmp_file:
             with zipfile.ZipFile(tmp_file.name, mode='w', compression=zipfile.ZIP_STORED) as archive:
+                archive_root = os.path.basename(os.path.normpath(path))
                 for root, _, files in os.walk(path):
                     for filename in sorted(files):
                         full_path = os.path.join(root, filename)
-                        archive_name = os.path.relpath(full_path, path)
+                        relative_name = os.path.relpath(full_path, path)
+                        archive_name = os.path.join(archive_root, relative_name)
                         archive.write(full_path, archive_name)
             return torch.load(tmp_file.name, map_location=map_location)
 
