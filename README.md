@@ -34,6 +34,8 @@ The main differences from CVPR are as follows:
 
 ## Installation
 
+### Local / Conda
+
 ```bash
 conda create -n CTFBTP python=3.9.16
 
@@ -43,6 +45,37 @@ pip install -r requirements.txt
 ```
 
 > All experiments run on a single A6000 GPU.
+
+### Google Colab
+
+Colab does not use Conda by default, so use the provided pip-based setup instead.
+
+```bash
+git clone https://github.com/khanzaifa37/SlotAttention-FG-BG.git
+cd SlotAttention-FG-BG
+bash setup_colab.sh
+```
+
+Notes for Colab:
+
+- PyTorch is usually preinstalled, so `setup_colab.sh` only installs the extra Python packages needed by this repo.
+- `train.py` now supports `--device auto`, which will pick GPU when Colab provides one and fall back to CPU otherwise.
+- `train.py` also defaults to `num_workers=0` inside Colab, which avoids common notebook multiprocessing issues.
+- If your datasets or checkpoints live in Google Drive, mount Drive first and pass the mounted paths to `--data_path`, `--teacher_checkpoint_path`, and `--log_path`.
+
+Example Colab cells:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+```bash
+%cd /content
+!git clone https://github.com/khanzaifa37/SlotAttention-FG-BG.git
+%cd /content/SlotAttention-FG-BG
+!bash setup_colab.sh
+```
 
 ---
 
@@ -80,7 +113,13 @@ It seems that the commonly used MOVi download site has been closed. We will orga
 
 ### Training(Using the DINOSAUR on the VOC dataset as an example.)
 ```bash
-python train.py --dataset voc --data_path /path/to/VOC2012/ --num_slots 6 --epochs 100 --init_method shared_gaussian --train_permutations standard  --teacher_checkpoint_path /path/to/teacher_checkpoint  --log_path /path/to/logs  --checkpoint_path /path/to/dinosaur_checkpoint 
+python train.py --dataset voc --data_path /path/to/VOC2012/ --num_slots 6 --epochs 100 --init_method shared_gaussian --train_permutations standard --teacher_checkpoint_path /path/to/teacher_checkpoint --log_path /path/to/logs --checkpoint_path /path/to/dinosaur_checkpoint
+```
+
+Example Colab command:
+
+```bash
+python train.py --dataset voc --data_path /content/drive/MyDrive/VOCdevkit/VOC2012 --num_slots 6 --epochs 100 --init_method shared_gaussian --train_permutations standard --teacher_checkpoint_path /content/drive/MyDrive/checkpoints/teacher.pt --log_path /content/drive/MyDrive/contextfusion_logs --checkpoint_path /content/drive/MyDrive/checkpoints/student_resume.pt --device auto
 ```
 
 

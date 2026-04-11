@@ -3,8 +3,10 @@ https://github.com/gkakogeorgiou/spot.git
 '''
 
 import math
+import os
 import os.path
 import argparse
+import sys
 from tqdm import tqdm
 from datetime import datetime
 import copy
@@ -26,10 +28,39 @@ from torchvision.utils import save_image
 
 IGNORE_INDEX = -100
 
+
+def is_running_in_colab():
+    return 'google.colab' in sys.modules or 'COLAB_GPU' in os.environ
+
+
+def resolve_device(device_arg):
+    if isinstance(device_arg, int):
+        device_arg = str(device_arg)
+
+    if device_arg == 'auto':
+        if torch.cuda.is_available():
+            return torch.device('cuda:0')
+        return torch.device('cpu')
+
+    if device_arg == 'cpu':
+        return torch.device('cpu')
+
+    if device_arg.startswith('cuda'):
+        if not torch.cuda.is_available():
+            raise RuntimeError('CUDA was requested but is not available.')
+        return torch.device(device_arg)
+
+    if device_arg.isdigit():
+        if not torch.cuda.is_available():
+            raise RuntimeError('A CUDA device index was provided but CUDA is not available.')
+        return torch.device(f'cuda:{device_arg}')
+
+    raise ValueError(f'Unsupported device value: {device_arg}')
+
 def get_args_parser():
     parser = argparse.ArgumentParser('SPOT (2)', add_help=False)
     
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=None, help='Defaults to 0 in Colab and 4 elsewhere')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--epochs', type=int, default=100)
@@ -113,23 +144,23 @@ def get_args_parser():
     parser.add_argument('--viz_resolution_factor', type=float, default=0.5)
 
     
-    parser.add_argument('--device', type=int, default=0, help='device to use for training, e.g., 0 for cuda:0')
+    parser.add_argument('--device', type=str, default='auto', help='auto, cpu, cuda:0, or a CUDA index like 0')
 
     return parser
 
 def train(args):
-    output_dir = "bg+spot_fusion"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-
     print(datetime.today().isoformat())
-    device = torch.device(f'cuda:{args.device}')
+    device = resolve_device(args.device)
     torch.manual_seed(args.seed)
+
+    if args.num_workers is None:
+        args.num_workers = 0 if is_running_in_colab() else 4
     
     arg_str_list = ['{}={}'.format(k, v) for k, v in vars(args).items()]
     arg_str = '__'.join(arg_str_list)
     log_dir = os.path.join(args.log_path, datetime.today().isoformat())
+    os.makedirs(args.log_path, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir)
     writer.add_text('hparams', arg_str)
     
@@ -148,7 +179,7 @@ def train(args):
     
     loader_kwargs = {
         'num_workers': args.num_workers,
-        'pin_memory': True,
+        'pin_memory': device.type == 'cuda',
     }
     
     train_loader = DataLoader(train_dataset, sampler=train_sampler, shuffle=True, drop_last = True, batch_size=args.batch_size, **loader_kwargs)
@@ -193,6 +224,9 @@ def train(args):
         load_pretrained_encoder(encoder_s, args.pretrained_encoder_weights, prefix=None)      
     else:
         raise
+
+    if 'encoder_s' not in locals():
+        encoder_s = copy.deepcopy(encoder)
     
     encoder = encoder.eval()
     encoder_s = encoder_s.train()
