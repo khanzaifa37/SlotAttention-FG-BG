@@ -19,6 +19,23 @@ from utils_spot import GaussianBlur
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
+def resolve_coco_image_dir(root, split, year='2017', image_root=None):
+    search_roots = []
+    if image_root is not None:
+        search_roots.append(image_root)
+    search_roots.extend([root, os.path.join(root, "images")])
+
+    for candidate_root in search_roots:
+        candidate = os.path.join(candidate_root, f"{split}{year}")
+        if os.path.isdir(candidate):
+            return candidate
+
+    raise FileNotFoundError(
+        f"Could not find COCO image directory for split '{split}{year}'. "
+        f"Searched under: {search_roots}"
+    )
+
+
 @dataclass
 class TeacherView:
     crop: torch.Tensor
@@ -220,13 +237,10 @@ class COCO2017(Dataset):
     
     assert(NUM_CLASSES) == len(set(CAT_LIST))
 
-    def __init__(self, root, split='train', year='2017', image_size=224, mask_size=224, return_gt_in_train=False):
+    def __init__(self, root, split='train', year='2017', image_size=224, mask_size=224, return_gt_in_train=False, image_root=None):
         super().__init__()
         ann_file = os.path.join(root, 'annotations/instances_{}{}.json'.format(split, year))
-        self.img_dir = os.path.join(root, '{}{}'.format(split, year))
-        if not os.path.isdir(self.img_dir):
-            self.img_dir = os.path.join(root, "images", '{}{}'.format(split, year))
-            assert os.path.isdir(self.img_dir)
+        self.img_dir = resolve_coco_image_dir(root, split, year=year, image_root=image_root)
         self.split = split
         self.coco = COCO(ann_file)
         self.coco_mask = mask
@@ -334,12 +348,9 @@ class COCO2017(Dataset):
 
 
 class COCO2017Teacher(Dataset):
-    def __init__(self, root, split='train', year='2017', image_size=224, min_scale=0.08):
+    def __init__(self, root, split='train', year='2017', image_size=224, min_scale=0.08, image_root=None):
         ann_file = os.path.join(root, 'annotations/instances_{}{}.json'.format(split, year))
-        self.img_dir = os.path.join(root, '{}{}'.format(split, year))
-        if not os.path.isdir(self.img_dir):
-            self.img_dir = os.path.join(root, 'images', '{}{}'.format(split, year))
-            assert os.path.isdir(self.img_dir)
+        self.img_dir = resolve_coco_image_dir(root, split, year=year, image_root=image_root)
         self.coco = COCO(ann_file)
         self.ids = list(self.coco.imgs.keys())
         self.transform = TeacherPairAugmentation(image_size=image_size, min_scale=min_scale)
@@ -436,3 +447,173 @@ class MOVi(Dataset):
                 mask_instance[:, :] += instance * i
 
             return img, mask_instance, mask_class, ignore_mask
+
+
+class TumorDataset(Dataset):
+    """
+    Generic dataset for tumor segmentation images.
+
+    Expected directory layout
+    -------------------------
+    images_dir/   img001.png  img002.jpg  ...
+    masks_dir/    img001.png  img002.png  ...   (same stem, any extension)
+
+    Mask conventions (handled automatically)
+    ----------------------------------------
+    - Binary masks  (0 / 255  or  0 / 1):
+        Each connected component → separate instance.
+    - Soft-boundary masks (e.g. BRISC: 0=bg, 1-7=uncertain boundary, 248-254=near-edge, 255=tumor):
+        Pixels >= mask_threshold are treated as tumor.
+        Connected components of that region → separate instances.
+    - Instance masks (0=bg, 1..N=distinct instances):
+        Used directly as-is.
+
+    mask_threshold : pixels with value >= this are treated as foreground.
+                     Default 1 (any non-zero pixel).  Set to 128 or 255 to
+                     keep only the high-confidence tumor core (recommended
+                     for BRISC-style soft-boundary masks).
+
+    Training split  → image tensor only  (unsupervised — no masks used)
+    Validation split → (image, mask_instance, mask_class, ignore_mask)
+        mask_instance : H×W long,   0=background  1..N=instance IDs
+        mask_class    : H×W long,   0=background  1=tumor
+        ignore_mask   : 1×H×W long, all zeros
+    """
+
+    def __init__(self, images_dir, masks_dir=None, split='train',
+                 image_size=224, mask_size=224, mask_ext='.png',
+                 mask_threshold=1):
+        assert split in ('train', 'val')
+        if split == 'val':
+            assert masks_dir is not None, 'masks_dir is required for the val split'
+
+        self.split = split
+        self.image_size = image_size
+        self.mask_size = mask_size
+        self.images_dir = images_dir
+        self.masks_dir = masks_dir
+        self.mask_ext = mask_ext
+        self.mask_threshold = mask_threshold
+
+        img_exts = ('*.jpg', '*.jpeg', '*.png', '*.tif', '*.tiff')
+        self.image_paths = sorted(
+            p for ext in img_exts
+            for p in glob.glob(os.path.join(images_dir, ext))
+        )
+        assert len(self.image_paths) > 0, f'No images found in {images_dir}'
+
+        self.train_transform = transforms.Compose([
+            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.CenterCrop(image_size),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+        self.val_transform_image = transforms.Compose([
+            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+        self.val_transform_mask = transforms.Compose([
+            transforms.Resize(mask_size, interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.CenterCrop(mask_size),
+            transforms.PILToTensor(),
+        ])
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def _load_instance_mask(self, mask_path):
+        """
+        Load a mask PNG and return a 2-D int32 array where each unique
+        positive integer is a separate tumor instance (0 = background).
+
+        Decision logic
+        --------------
+        1. Apply self.mask_threshold: pixels >= threshold are foreground.
+        2. If the foreground contains small consecutive ints (1..N, max<=200)
+           treat them as pre-labeled instance IDs.
+        3. Otherwise (binary or BRISC soft-boundary masks where core=255,
+           fringe=1-7/248-254): binarize at threshold and run
+           connected-component labeling — each contiguous blob = one instance.
+        """
+        from scipy import ndimage as ndi
+
+        mask_arr = np.array(Image.open(mask_path).convert('L'), dtype=np.int32)
+
+        foreground = (mask_arr >= self.mask_threshold)
+
+        if not foreground.any():
+            return np.zeros_like(mask_arr)
+
+        unique_pos = np.unique(mask_arr[foreground])
+
+        # Pre-labeled instance mask: small consecutive non-zero integers
+        if unique_pos.max() <= 200 and unique_pos.min() >= 1:
+            return np.where(foreground, mask_arr, 0).astype(np.int32)
+
+        # Binary or soft-boundary mask: binarize then label components
+        labeled, _ = ndi.label(foreground.astype(np.uint8))
+        return labeled.astype(np.int32)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        img = Image.open(img_path).convert('RGB')
+
+        if self.split == 'train':
+            return self.train_transform(img)
+
+        # ----- validation -----
+        stem = os.path.splitext(os.path.basename(img_path))[0]
+        mask_path = os.path.join(self.masks_dir, stem + self.mask_ext)
+
+        instance_arr = self._load_instance_mask(mask_path)
+        # Class mask: all tumors share class label 1
+        class_arr = (instance_arr > 0).astype(np.int32)
+
+        img_t = self.val_transform_image(img)
+
+        # PIL conversion: clip to uint8 range (max 255 instances per image)
+        instance_arr = np.clip(instance_arr, 0, 255).astype(np.uint8)
+        class_arr    = class_arr.astype(np.uint8)
+
+        mask_instance = self.val_transform_mask(Image.fromarray(instance_arr)).squeeze().long()
+        mask_class    = self.val_transform_mask(Image.fromarray(class_arr)).squeeze().long()
+        ignore_mask   = torch.zeros((1, self.mask_size, self.mask_size), dtype=torch.long)
+
+        return img_t, mask_instance, mask_class, ignore_mask
+
+
+class TumorDatasetTeacher(Dataset):
+    """
+    Teacher-training split for tumor images.
+
+    Applies TeacherPairAugmentation (two paired random crops per image) so
+    the Indicator model can learn foreground vs background from unlabeled data.
+    No masks are required — teacher training is fully unsupervised.
+
+    Expected layout
+    ---------------
+    images_dir/   img001.png  img002.jpg  ...
+
+    Returns the same (crops, coords, flags) tuple as PascalVOCTeacher /
+    COCO2017Teacher so it drops in directly to train_teacher.py.
+    """
+
+    def __init__(self, images_dir, image_size=224, min_scale=0.08):
+        img_exts = ('*.jpg', '*.jpeg', '*.png', '*.tif', '*.tiff')
+        self.image_paths = sorted(
+            p for ext in img_exts
+            for p in glob.glob(os.path.join(images_dir, ext))
+        )
+        assert len(self.image_paths) > 0, f'No images found in {images_dir}'
+        self.transform = TeacherPairAugmentation(image_size=image_size,
+                                                 min_scale=min_scale)
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.image_paths[idx]).convert('RGB')
+        return self.transform(img)

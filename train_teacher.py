@@ -15,7 +15,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from FB_Indicator import Indicator
-from datasets import COCO2017, COCO2017Teacher, PascalVOC, PascalVOCTeacher
+from datasets import (COCO2017, COCO2017Teacher, PascalVOC, PascalVOCTeacher,
+                      TumorDataset, TumorDatasetTeacher)
 from ocl_metrics import ARIMetric, UnsupervisedMaskIoUMetric
 from utils_spot import bool_flag, cosine_scheduler, load_pretrained_encoder
 import models_vit
@@ -94,6 +95,12 @@ def get_args_parser():
     parser.add_argument("--train_permutations", type=str, default="standard")
     parser.add_argument("--eval_permutations", type=str, default="standard")
     parser.add_argument("--min-scale", type=float, default=0.08)
+    parser.add_argument("--mask_ext", type=str, default=".png",
+                        help="Mask file extension for tumor dataset (default: .png)")
+    parser.add_argument("--val_data_path", type=str, default=None,
+                        help="Root of the validation split for --dataset tumor. "
+                             "Expects val_data_path/images/ and val_data_path/masks/. "
+                             "Falls back to data_path if not set.")
 
     parser.add_argument("--group-loss-weight", default=0.5, type=float)
     parser.add_argument("--ctr-loss-weight", default=0.2, type=float)
@@ -162,8 +169,24 @@ def build_datasets(args):
         val_dataset = COCO2017(
             root=args.data_path, split="val", image_size=args.val_image_size, mask_size=args.val_mask_size
         )
+    elif args.dataset == "tumor":
+        # data_path/images/  → teacher training images (unsupervised, no masks needed)
+        # val_data_path/images/ + val_data_path/masks/ → validation with ground-truth masks
+        # If --val_data_path is not provided it falls back to data_path.
+        train_images_dir = os.path.join(args.data_path, "images")
+        val_root   = args.val_data_path if args.val_data_path else args.data_path
+        val_images = os.path.join(val_root, "images")
+        val_masks  = os.path.join(val_root, "masks")
+        train_dataset = TumorDatasetTeacher(
+            images_dir=train_images_dir, image_size=args.image_size, min_scale=args.min_scale
+        )
+        val_dataset = TumorDataset(
+            images_dir=val_images, masks_dir=val_masks, split="val",
+            image_size=args.val_image_size, mask_size=args.val_mask_size,
+            mask_ext=args.mask_ext,
+        )
     else:
-        raise ValueError("Teacher training currently supports only coco and voc.")
+        raise ValueError("--dataset must be one of: coco, voc, tumor")
     return train_dataset, val_dataset
 
 

@@ -22,7 +22,7 @@ import torchvision.utils as vutils
 from torch.nn import CrossEntropyLoss
 from contextfusion_bootstrp import SPOT
 from FB_Indicator import Indicator
-from datasets import PascalVOC, COCO2017, MOVi
+from datasets import PascalVOC, COCO2017, MOVi, TumorDataset
 from ocl_metrics import UnsupervisedMaskIoUMetric, ARIMetric
 from utils_spot import inv_normalize, cosine_scheduler, visualize, att_matching, bool_flag, load_pretrained_encoder
 import models_vit
@@ -92,8 +92,17 @@ def get_args_parser():
     
     parser.add_argument('--checkpoint_path', default='checkpoint.pt.tar', help='checkpoint to continue the training, loaded only if exists')
     parser.add_argument('--log_path', default='logs')
-    parser.add_argument('--dataset', default='coco', help='coco or voc')
+    parser.add_argument('--dataset', default='coco', help='coco, voc, movi, or tumor')
     parser.add_argument('--data_path',  type=str, help='dataset path')
+    parser.add_argument('--val_data_path', type=str, default=None,
+                        help='Validation data root for --dataset tumor. '
+                             'Expects val_data_path/images/ and val_data_path/masks/. '
+                             'Falls back to data_path if not set.')
+    parser.add_argument('--mask_ext', type=str, default='.png',
+                        help='Mask file extension for tumor dataset (default: .png)')
+    parser.add_argument('--mask_threshold', type=int, default=1,
+                        help='Pixels >= this value treated as tumor foreground. '
+                             'Use 128 or 255 for BRISC soft-boundary masks.')
     parser.add_argument('--predefined_movi_json_paths', default = None,  type=str, help='For MOVi datasets, use the same subsampled images. Typically for the 2nd stage of Spot training to retain the same images')
     
     parser.add_argument('--lr_main', type=float, default=4e-4)
@@ -192,6 +201,28 @@ def train(args):
     elif args.dataset == 'movi':
         train_dataset = MOVi(root=os.path.join(args.data_path, 'train'), split='train', image_size=args.image_size, mask_size = args.image_size, frames_per_clip=9, predefined_json_paths = args.predefined_movi_json_paths)
         val_dataset = MOVi(root=os.path.join(args.data_path, 'validation'), split='validation', image_size=args.val_image_size, mask_size = args.val_mask_size)
+    elif args.dataset == 'tumor':
+        # Training: images-only (unsupervised). Validation: images + masks.
+        # data_path/images/ → training images
+        # val_data_path/images/ + val_data_path/masks/ → validation
+        val_root = args.val_data_path if args.val_data_path else args.data_path
+        train_dataset = TumorDataset(
+            images_dir=os.path.join(args.data_path, 'images'),
+            split='train',
+            image_size=args.image_size,
+            mask_size=args.image_size,
+            mask_ext=args.mask_ext,
+            mask_threshold=args.mask_threshold,
+        )
+        val_dataset = TumorDataset(
+            images_dir=os.path.join(val_root, 'images'),
+            masks_dir=os.path.join(val_root, 'masks'),
+            split='val',
+            image_size=args.val_image_size,
+            mask_size=args.val_mask_size,
+            mask_ext=args.mask_ext,
+            mask_threshold=args.mask_threshold,
+        )
 
     train_sampler = None
     val_sampler = None
