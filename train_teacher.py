@@ -240,7 +240,7 @@ def train_teacher(args):
     best_miou = 0.0
     best_epoch = 0
     if args.resume_path and os.path.isfile(args.resume_path):
-        checkpoint = torch.load(args.resume_path, map_location="cpu")
+        checkpoint = torch.load(args.resume_path, map_location="cpu", weights_only=False)
         model.load_state_dict(checkpoint["model"], strict=False)
         optimizer.load_state_dict(checkpoint["optimizer"])
         start_epoch = checkpoint.get("epoch", 0)

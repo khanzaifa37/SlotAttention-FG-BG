@@ -65,8 +65,8 @@ def load_checkpoint(path, map_location='cpu'):
                         full = os.path.join(root, filename)
                         rel  = os.path.relpath(full, path)
                         arc.write(full, os.path.join(archive_root, rel))
-            return torch.load(tmp.name, map_location=map_location)
-    return torch.load(path, map_location=map_location)
+            return torch.load(tmp.name, map_location=map_location, weights_only=False)
+    return torch.load(path, map_location=map_location, weights_only=False)
 
 
 # ---------------------------------------------------------------------------

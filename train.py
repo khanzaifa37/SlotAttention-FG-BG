@@ -71,9 +71,9 @@ def load_checkpoint(path, map_location='cpu'):
                         relative_name = os.path.relpath(full_path, path)
                         archive_name = os.path.join(archive_root, relative_name)
                         archive.write(full_path, archive_name)
-            return torch.load(tmp_file.name, map_location=map_location)
+            return torch.load(tmp_file.name, map_location=map_location, weights_only=False)
 
-    return torch.load(path, map_location=map_location)
+    return torch.load(path, map_location=map_location, weights_only=False)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('SPOT (2)', add_help=False)
