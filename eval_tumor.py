@@ -265,7 +265,9 @@ def main():
         args_teacher.finetune_blocks_after = 100   # fully frozen
         args_teacher.num_slots          = 2         # FG + BG
 
-        teacher_model = Indicator(copy.deepcopy(encoder), args_teacher)
+        # encoder was moved to GPU by student_model.to(device) above;
+        # Indicator.__init__ probes it with a CPU tensor, so copy to CPU first.
+        teacher_model = Indicator(copy.deepcopy(encoder).cpu(), args_teacher)
 
         teacher_ckpt = load_checkpoint(args.teacher_checkpoint_path, map_location='cpu')
         teacher_state = teacher_ckpt.get('model', teacher_ckpt)
