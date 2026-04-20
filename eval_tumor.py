@@ -142,14 +142,19 @@ def get_args():
                    help='Skip teacher; use student slots as teacher proxy '
                         '(weaker results but no teacher checkpoint needed)')
 
-    # --- Teacher-specific args (mirror train.py defaults) ---
+    # --- Teacher-specific args (mirror train_teacher.py defaults) ---
     p.add_argument('--teacher_truncate',           default='bi-level')
     p.add_argument('--teacher_init_method',        default='mu_embedding')
     p.add_argument('--teacher_train_permutations', default='standard')
     p.add_argument('--teacher_eval_permutations',  default='standard')
-    p.add_argument('--teacher-temp',   type=float, default=0.07)
-    p.add_argument('--student-temp',   type=float, default=0.1)
-    p.add_argument('--center-momentum',type=float, default=0.9)
+    p.add_argument('--teacher-temp',      type=float, default=0.07)
+    p.add_argument('--student-temp',      type=float, default=0.1)
+    p.add_argument('--center-momentum',   type=float, default=0.9)
+    p.add_argument('--teacher-momentum',  type=float, default=0.99)
+    p.add_argument('--group-loss-weight', type=float, default=0.5)
+    p.add_argument('--ctr-loss-weight',   type=float, default=0.2)
+    p.add_argument('--differ_loss_weight',type=float, default=0.5)
+    p.add_argument('--kernel_size',       type=int,   default=1)
 
     # --- Misc ---
     p.add_argument('--device', default='auto')
@@ -264,6 +269,13 @@ def main():
         args_teacher.eval_permutations  = args.teacher_eval_permutations
         args_teacher.finetune_blocks_after = 100   # fully frozen
         args_teacher.num_slots          = 2         # FG + BG
+
+        # Indicator.__init__ reads these for momentum-schedule bookkeeping;
+        # they are only used during training, not eval, so dummy values are fine.
+        args_teacher.num_instances = len(val_dataset)
+        args_teacher.batch_size    = args.eval_batch_size
+        args_teacher.epochs        = 1
+        args_teacher.start_epoch   = 1
 
         # encoder was moved to GPU by student_model.to(device) above;
         # Indicator.__init__ probes it with a CPU tensor, so copy to CPU first.
