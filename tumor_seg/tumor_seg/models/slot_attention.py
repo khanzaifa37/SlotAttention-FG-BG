@@ -20,8 +20,8 @@ class SlotAttention(nn.Module):
         self.eps = eps
         self.scale = slot_dim ** -0.5
 
-        self.slots_mu = nn.Parameter(torch.randn(1, 1, slot_dim) * 0.02)
-        self.slots_log_sigma = nn.Parameter(torch.zeros(1, 1, slot_dim))
+        self.slots_mu = nn.Parameter(torch.randn(1, num_slots, slot_dim) * 0.02)
+        self.slots_log_sigma = nn.Parameter(torch.zeros(1, num_slots, slot_dim))
 
         self.norm_input = nn.LayerNorm(slot_dim)
         self.norm_slots = nn.LayerNorm(slot_dim)
