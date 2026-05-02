@@ -11,7 +11,7 @@ class FBSASegmenter(nn.Module):
     """Foreground/Background Slot Attention segmenter.
 
     Frozen DINO ViT-S/16 -> linear proj to slot_dim -> 2-slot Slot Attention ->
-    spatial broadcast of the FG slot (slot 0) weighted by its attention map ->
+    fuse DINO patch tokens with slot-conditioned context and attention maps ->
     ConvTranspose upsampler -> per-pixel logits.
     """
 
@@ -40,7 +40,8 @@ class FBSASegmenter(nn.Module):
             num_slots=num_slots, slot_dim=slot_dim,
             n_iters=slot_iters, hidden_dim=slot_hidden,
         )
-        self.upsampler = Upsampler(in_channels=slot_dim, out_channels=out_channels)
+        self.decoder_channels = (2 * slot_dim) + num_slots
+        self.upsampler = Upsampler(in_channels=self.decoder_channels, out_channels=out_channels)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         B = image.shape[0]
@@ -49,12 +50,11 @@ class FBSASegmenter(nn.Module):
 
         slots, attn = self.slot_attn(tokens)
 
-        fg_slot = slots[:, 0:1, :]
-        fg_attn = attn[:, :, 0:1]
-        feat = fg_attn * fg_slot
+        slot_context = torch.einsum("bnk,bkd->bnd", attn, slots)
+        feat = torch.cat([tokens, slot_context, attn], dim=-1)
 
         N = feat.shape[1]
         H = W = int(math.sqrt(N))
-        feat = feat.transpose(1, 2).reshape(B, self.slot_dim, H, W)
+        feat = feat.transpose(1, 2).reshape(B, self.decoder_channels, H, W)
 
         return self.upsampler(feat)
