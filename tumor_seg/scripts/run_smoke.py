@@ -1,9 +1,10 @@
 """End-to-end smoke test for the FBSA segmenter.
 
-Runs three structural checks (no BRISC required):
+Runs four structural checks (no BRISC required):
   1. shapes:       forward pass on random tensor -> [B,1,224,224]
   2. param freeze: trainable params in [1M, 5M] (encoder frozen)
-  3. grad flow:    one backward pass produces non-zero gradients on every
+  3. eval slots:   deterministic eval-time slots do not collapse together
+  4. grad flow:    one backward pass produces non-zero gradients on every
                    trainable parameter group (proj, slot_attn, upsampler).
 
 We deliberately do NOT try to "overfit" on synthetic data: with the encoder
@@ -26,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 from tumor_seg.config import TrainConfig
 from tumor_seg.losses import DiceBCELoss
 from tumor_seg.models import FBSASegmenter
+from tumor_seg.models.slot_attention import SlotAttention
 
 
 def check_shapes(model, device):
@@ -33,7 +35,7 @@ def check_shapes(model, device):
     with torch.no_grad():
         out = model(torch.randn(2, 3, 224, 224, device=device))
     assert out.shape == (2, 1, 224, 224), f"expected [2,1,224,224] got {tuple(out.shape)}"
-    print(f"[1/3] shapes OK  -> {tuple(out.shape)}")
+    print(f"[1/4] shapes OK  -> {tuple(out.shape)}")
 
 
 def check_freeze(model):
@@ -41,7 +43,24 @@ def check_freeze(model):
     n_total = sum(p.numel() for p in model.parameters())
     msg = f"trainable={n_train/1e6:.2f}M total={n_total/1e6:.2f}M"
     assert 1e6 <= n_train <= 5e6, f"trainable params out of band: {msg}"
-    print(f"[2/3] freeze OK  -> {msg}")
+    print(f"[2/4] freeze OK  -> {msg}")
+
+
+def check_eval_slot_diversity(device):
+    torch.manual_seed(0)
+    slot_attn = SlotAttention(num_slots=2, slot_dim=32, n_iters=2, hidden_dim=64).to(device)
+    slot_attn.eval()
+    x = torch.randn(2, 196, 32, device=device)
+
+    with torch.no_grad():
+        slots, attn = slot_attn(x)
+
+    slot_delta = (slots[:, 0] - slots[:, 1]).abs().mean().item()
+    attn_delta = (attn[:, :, 0] - attn[:, :, 1]).abs().mean().item()
+    print(f"  slot delta = {slot_delta:.6f}; attention delta = {attn_delta:.6f}")
+    assert slot_delta > 0, "eval slots collapsed to identical vectors"
+    assert attn_delta > 0, "eval attention maps collapsed to identical maps"
+    print("[3/4] eval slot diversity OK")
 
 
 def check_grad_flow(model, device):
@@ -86,7 +105,7 @@ def check_grad_flow(model, device):
             print("  !", b)
     assert not bad, f"{len(bad)} parameter(s) have missing/zero/non-finite grads"
     assert all(seen.values()), f"groups missed: {[k for k,v in seen.items() if not v]}"
-    print("[3/3] grad flow OK")
+    print("[4/4] grad flow OK")
 
 
 def main():
@@ -102,6 +121,7 @@ def main():
 
     check_shapes(model, device)
     check_freeze(model)
+    check_eval_slot_diversity(device)
     check_grad_flow(model, device)
     print("\nAll smoke checks passed.")
 
