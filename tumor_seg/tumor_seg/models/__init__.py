@@ -1,15 +1,19 @@
 from .encoder import DinoEncoder
 from .slot_attention import SlotAttention
 from .upsampler import Upsampler
+from .image_stem import ImageStem
+from .skip_upsampler import SkipUpsampler
 from .fbsa_segmenter import FBSASegmenter
 from .fbsa_fused_segmenter import FBSAFusedSegmenter
+from .fbsa_skip_segmenter import FBSASkipSegmenter
 
 
 # Registry of available architectures. Add new entries here as we add classes
-# (e.g. fbsa_skip for option 2, fbsa_multi for option 4).
+# (e.g. fbsa_multi for option 4 with Hungarian matching).
 ARCH_REGISTRY = {
-    "fbsa": FBSASegmenter,
-    "fbsa_fused": FBSAFusedSegmenter,
+    "fbsa": FBSASegmenter,            # v1: slot signal only
+    "fbsa_fused": FBSAFusedSegmenter, # v2: + encoder feature fusion (option 1)
+    "fbsa_skip": FBSASkipSegmenter,   # v3: + image-stem skip connections (option 2)
 }
 
 
