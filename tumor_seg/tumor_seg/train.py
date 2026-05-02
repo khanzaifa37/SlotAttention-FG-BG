@@ -21,7 +21,7 @@ from .config import TrainConfig
 from .data import create_brisc_dataloaders
 from .losses import DiceBCELoss
 from .metrics import dice_coefficient, iou_coefficient, hausdorff_distance_metric
-from .models import FBSASegmenter
+from .models import build_model
 
 
 def set_seed(seed: int):
@@ -80,18 +80,11 @@ def main(cfg: TrainConfig):
     )
     print(f"train={len(train_loader.dataset)}  val={len(val_loader.dataset)}")
 
-    model = FBSASegmenter(
-        encoder_name=cfg.encoder,
-        encoder_dim=cfg.encoder_dim,
-        num_slots=cfg.num_slots,
-        slot_dim=cfg.slot_dim,
-        slot_iters=cfg.slot_iters,
-        slot_hidden=cfg.slot_hidden,
-    ).to(device)
+    model = build_model(cfg).to(device)
 
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     n_total = sum(p.numel() for p in model.parameters())
-    print(f"params trainable={n_train/1e6:.2f}M  total={n_total/1e6:.2f}M")
+    print(f"arch={cfg.arch}  params trainable={n_train/1e6:.2f}M  total={n_total/1e6:.2f}M")
 
     criterion = DiceBCELoss(bce_weight=cfg.bce_weight)
     optimizer = torch.optim.Adam(

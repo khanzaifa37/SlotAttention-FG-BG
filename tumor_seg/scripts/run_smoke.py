@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from tumor_seg.config import TrainConfig
 from tumor_seg.losses import DiceBCELoss
-from tumor_seg.models import FBSASegmenter
+from tumor_seg.models import build_model
 
 
 def check_shapes(model, device):
@@ -90,15 +90,17 @@ def check_grad_flow(model, device):
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"device = {device}")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arch", default="fbsa",
+                        help="Architecture key from ARCH_REGISTRY (fbsa, fbsa_fused).")
+    args = parser.parse_args()
 
-    cfg = TrainConfig()
-    model = FBSASegmenter(
-        encoder_name=cfg.encoder, encoder_dim=cfg.encoder_dim,
-        num_slots=cfg.num_slots, slot_dim=cfg.slot_dim,
-        slot_iters=cfg.slot_iters, slot_hidden=cfg.slot_hidden,
-    ).to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device = {device}  arch = {args.arch}")
+
+    cfg = TrainConfig(arch=args.arch)
+    model = build_model(cfg).to(device)
 
     check_shapes(model, device)
     check_freeze(model)

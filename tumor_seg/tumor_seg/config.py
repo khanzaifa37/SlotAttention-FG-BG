@@ -10,6 +10,10 @@ class TrainConfig:
     lr: float = 3e-4
     lr_min: float = 1e-6
 
+    arch: str = "fbsa"          # see ARCH_REGISTRY in models/__init__.py
+                                 # "fbsa"        — v1: slot signal only
+                                 # "fbsa_fused"  — v2: slot + encoder feature fusion
+
     encoder: str = "dino_vits16"
     encoder_dim: int = 384
     patch_size: int = 16
