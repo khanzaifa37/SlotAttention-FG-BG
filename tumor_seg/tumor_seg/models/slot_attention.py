@@ -43,8 +43,11 @@ class SlotAttention(nn.Module):
         K, D = self.num_slots, self.slot_dim
 
         mu = self.slots_mu.expand(B, K, D)
-        sigma = self.slots_log_sigma.exp().expand(B, K, D)
-        slots = mu + sigma * torch.randn_like(mu)
+        if self.training:
+            sigma = self.slots_log_sigma.exp().expand(B, K, D)
+            slots = mu + sigma * torch.randn_like(mu)
+        else:
+            slots = mu.clone()
 
         x = self.norm_input(x)
         k = self.to_k(x)
