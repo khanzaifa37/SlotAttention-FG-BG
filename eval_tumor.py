@@ -53,6 +53,36 @@ def resolve_device(device_arg):
     raise ValueError(f'Unsupported device: {device_arg}')
 
 
+def compute_best_dice(pred_mask, gt_instance_mask, num_slots):
+    """
+    Per-image best-slot Dice against the binary GT tumor mask.
+
+    For each image, tries every predicted slot and picks the one whose
+    binary mask best overlaps with the GT tumor region.  Returns the
+    average Dice across images that actually contain a tumor.
+
+    pred_mask        : [B, H, W] long  — argmax over slots (0..K-1)
+    gt_instance_mask : [B, H, W] long  — GT instance IDs (0 = background)
+    num_slots        : int
+    """
+    B = pred_mask.shape[0]
+    gt_binary = gt_instance_mask > 0          # [B, H, W] bool
+    scores = []
+    for b in range(B):
+        gt = gt_binary[b]
+        if not gt.any():
+            continue                           # skip images with no tumor
+        best = 0.0
+        for s in range(num_slots):
+            pred_s = pred_mask[b] == s         # [H, W] bool
+            tp     = (pred_s & gt).sum().float()
+            denom  = pred_s.sum().float() + gt.sum().float()
+            if denom > 0:
+                best = max(best, (2 * tp / denom).item())
+        scores.append(best)
+    return sum(scores) / len(scores) if scores else 0.0
+
+
 def load_checkpoint(path, map_location='cpu'):
     """Load a regular .pt/.tar file OR a distributed checkpoint directory."""
     if os.path.isdir(path):
@@ -322,6 +352,8 @@ def main():
     # ------------------------------------------------------------------ #
     val_mse = 0.0
     n_batches = 0
+    dice_sum = 0.0
+    dice_n_batches = 0
 
     with torch.no_grad():
         for image, true_mask_i, true_mask_c, mask_ignore in tqdm(val_loader,
@@ -346,6 +378,11 @@ def main():
             val_mse += mse.item()
             n_batches += 1
 
+            # Dice: best-slot match against binary GT tumor mask
+            batch_dice = compute_best_dice(pred_mask, true_mask_i, dec_attns.shape[1])
+            dice_sum += batch_dice
+            dice_n_batches += 1
+
             # One-hot encode for metrics  [B, H, W] → [B, K, 1, H, W]
             pred_oh   = F.one_hot(pred_mask).float().permute(0, 3, 1, 2).to(device)
             true_i_oh = F.one_hot(true_mask_i).float().permute(0, 3, 1, 2).to(device)
@@ -364,11 +401,13 @@ def main():
     mbo_i = 100 * MBO_i_metric.compute()
     miou  = 100 * miou_metric.compute()
     mse   = val_mse / n_batches
+    dice  = 100 * (dice_sum / dice_n_batches if dice_n_batches > 0 else 0.0)
 
     print('\n' + '=' * 60)
-    print('  Baseline Evaluation on Tumor Dataset')
+    print('  Evaluation on Tumor Dataset')
     print('=' * 60)
-    print(f'  MSE (reconstruction)  : {mse:.6f}')
+    print(f'  MSE  (reconstruction) : {mse:.6f}')
+    print(f'  Dice (best-slot)      : {dice:.2f}')
     print(f'  ARI  (foreground)     : {ari:.2f}')
     print(f'  mBO_i (instance)      : {mbo_i:.2f}')
     print(f'  mBO_c (class)         : {mbo_c:.2f}')
