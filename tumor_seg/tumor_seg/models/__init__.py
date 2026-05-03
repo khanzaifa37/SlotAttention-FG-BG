@@ -6,14 +6,15 @@ from .skip_upsampler import SkipUpsampler
 from .fbsa_segmenter import FBSASegmenter
 from .fbsa_fused_segmenter import FBSAFusedSegmenter
 from .fbsa_skip_segmenter import FBSASkipSegmenter
+from .fbsa_hungarian_segmenter import FBSAHungarianSegmenter
 
 
-# Registry of available architectures. Add new entries here as we add classes
-# (e.g. fbsa_multi for option 4 with Hungarian matching).
+# Registry of available architectures. Add new entries here as we add classes.
 ARCH_REGISTRY = {
-    "fbsa": FBSASegmenter,            # v1: slot signal only
-    "fbsa_fused": FBSAFusedSegmenter, # v2: + encoder feature fusion (option 1)
-    "fbsa_skip": FBSASkipSegmenter,   # v3: + image-stem skip connections (option 2)
+    "fbsa": FBSASegmenter,                   # v1: slot signal only
+    "fbsa_fused": FBSAFusedSegmenter,        # v2: + encoder feature fusion (option 1)
+    "fbsa_skip": FBSASkipSegmenter,          # v3: + image-stem skip connections (option 2)
+    "fbsa_hungarian": FBSAHungarianSegmenter,# v4: K-slot + Hungarian CE (option 4)
 }
 
 

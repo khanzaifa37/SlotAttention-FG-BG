@@ -19,7 +19,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from .config import TrainConfig
 from .data import create_brisc_dataloaders
-from .losses import DiceBCELoss
+from .losses import build_loss
 from .metrics import dice_coefficient, iou_coefficient, hausdorff_distance_metric
 from .models import build_model
 
@@ -86,7 +86,7 @@ def main(cfg: TrainConfig):
     n_total = sum(p.numel() for p in model.parameters())
     print(f"arch={cfg.arch}  params trainable={n_train/1e6:.2f}M  total={n_total/1e6:.2f}M")
 
-    criterion = DiceBCELoss(bce_weight=cfg.bce_weight)
+    criterion = build_loss(cfg, model)
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad], lr=cfg.lr,
     )

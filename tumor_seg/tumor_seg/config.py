@@ -11,8 +11,15 @@ class TrainConfig:
     lr_min: float = 1e-6
 
     arch: str = "fbsa"          # see ARCH_REGISTRY in models/__init__.py
-                                 # "fbsa"        — v1: slot signal only
-                                 # "fbsa_fused"  — v2: slot + encoder feature fusion
+                                 # "fbsa"            — v1: slot signal only
+                                 # "fbsa_fused"      — v2: slot + encoder feature fusion
+                                 # "fbsa_skip"       — v3: + image-stem skip connections
+                                 # "fbsa_hungarian"  — v4: K-slot + Hungarian CE
+                                 #                    (set num_slots=4, loss="hungarian")
+
+    # Loss: "dicebce" (default, all arches) or "hungarian" (paired with
+    # arch="fbsa_hungarian"). See losses.build_loss.
+    loss: str = "dicebce"
 
     encoder: str = "dino_vits16"
     encoder_dim: int = 384
