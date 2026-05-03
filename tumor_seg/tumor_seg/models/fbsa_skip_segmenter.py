@@ -13,6 +13,8 @@ freely.
 """
 
 import math
+from typing import Optional
+
 import torch
 from torch import nn
 
@@ -33,11 +35,12 @@ class FBSASkipSegmenter(nn.Module):
         slot_hidden: int = 512,
         out_channels: int = 1,
         stem_base: int = 16,
+        finetune_blocks_after: Optional[int] = None,
     ):
         super().__init__()
         self.num_slots = num_slots
         self.slot_dim = slot_dim
-        self.encoder = DinoEncoder(encoder_name)
+        self.encoder = DinoEncoder(encoder_name, finetune_blocks_after=finetune_blocks_after)
         assert self.encoder.embed_dim == encoder_dim, (
             f"encoder_dim {encoder_dim} != actual {self.encoder.embed_dim}"
         )

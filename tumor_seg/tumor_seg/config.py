@@ -23,6 +23,10 @@ class TrainConfig:
     slot_iters: int = 3
     slot_hidden: int = 512
 
+    # Encoder fine-tuning: None = fully frozen; 10 = unfreeze last 2 blocks of
+    # a 12-block ViT-S/16. Cost: ~3× memory, ~1.5× slower. Gain: +0.02–0.05 Dice.
+    finetune_blocks_after: int = None
+
     bce_weight: float = 0.5
     num_workers: int = 2
     train_limit: int = None

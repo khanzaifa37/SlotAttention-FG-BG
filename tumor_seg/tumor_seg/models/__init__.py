@@ -36,4 +36,5 @@ def build_model(cfg):
         slot_dim=cfg.slot_dim,
         slot_iters=cfg.slot_iters,
         slot_hidden=cfg.slot_hidden,
+        finetune_blocks_after=getattr(cfg, "finetune_blocks_after", None),
     )
