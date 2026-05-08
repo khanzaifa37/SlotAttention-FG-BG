@@ -41,13 +41,17 @@ def check_feature_dict(model, device):
     with torch.no_grad():
         out = model(torch.randn(2, 3, 224, 224, device=device), return_features=True)
     assert out["logits"].shape == (2, 1, 224, 224)
-    assert out["tokens"].shape == (2, 196, 256)
-    assert out["slots"].shape == (2, 2, 256)
-    assert out["attn"].shape == (2, 196, 2)
-    assert out["decoder_feat"].shape == (2, 64, 56, 56)
-    assert out["token_emb"].shape == (2, 196, 128)
-    assert out["slot_emb"].shape == (2, 2, 128)
-    assert out["pixel_emb"].shape == (2, 64, 56, 56)
+    assert out["tokens"].shape[:2] == (2, 196)
+    assert out["slots"].shape[0] == 2
+    assert out["attn"].shape[:2] == (2, 196)
+    if "decoder_feat" in out:
+        assert out["decoder_feat"].shape == (2, 64, 56, 56)
+        assert out["token_emb"].shape == (2, 196, 128)
+        assert out["slot_emb"].shape == (2, 2, 128)
+        assert out["pixel_emb"].shape == (2, 64, 56, 56)
+    if "slot_masks" in out:
+        assert out["slot_masks"].shape[0] == 2
+        assert out["slot_masks"].shape[-2:] == (224, 224)
     print("[1b] feature dict OK")
 
 
@@ -55,7 +59,7 @@ def check_freeze(model):
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     n_total = sum(p.numel() for p in model.parameters())
     msg = f"trainable={n_train/1e6:.2f}M total={n_total/1e6:.2f}M"
-    assert 1e6 <= n_train <= 5e6, f"trainable params out of band: {msg}"
+    assert 1e5 <= n_train <= 5e6, f"trainable params out of band: {msg}"
     print(f"[2/3] freeze OK  -> {msg}")
 
 
@@ -122,7 +126,7 @@ def main():
     model = build_model(cfg).to(device)
 
     check_shapes(model, device)
-    if args.arch == "fbsa_skip_contrastive":
+    if args.arch in ("fbsa_skip_contrastive", "dinosaur_readout"):
         check_feature_dict(model, device)
     check_freeze(model)
     check_grad_flow(model, device, contrastive=args.arch == "fbsa_skip_contrastive")

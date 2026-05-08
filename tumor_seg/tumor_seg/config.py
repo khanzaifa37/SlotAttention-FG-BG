@@ -15,6 +15,8 @@ class TrainConfig:
                                  # "fbsa_fused"  — v2: slot + encoder feature fusion
                                  # "fbsa_skip"   - v3: + image-stem skip connections
                                  # "fbsa_skip_contrastive" - v4: + contrastive losses
+                                 # "dinosaur_readout" - vanilla Slot Attention baseline
+                                 # "dinosaur_vanilla" - alias for dinosaur_readout
 
     encoder: str = "dino_vits16"
     encoder_dim: int = 384

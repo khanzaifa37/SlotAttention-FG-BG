@@ -53,12 +53,34 @@ def _component_value(criterion, name: str, loss: torch.Tensor) -> float:
     return float(value)
 
 
+def _best_slot_metrics(outputs, masks, image_size):
+    if not isinstance(outputs, dict) or "slot_masks" not in outputs:
+        return None
+
+    with torch.no_grad():
+        slot_probs = outputs["slot_masks"].detach().clamp(1e-6, 1.0 - 1e-6)
+        targets = masks.detach()
+        inter = (slot_probs * targets).flatten(2).sum(dim=2)
+        sums = slot_probs.flatten(2).sum(dim=2) + targets.flatten(1).sum(dim=1, keepdim=True)
+        dice_per_slot = (2 * inter + 1e-6) / (sums + 1e-6)
+        best_idx = dice_per_slot.argmax(dim=1)
+        chosen = slot_probs[torch.arange(slot_probs.shape[0], device=slot_probs.device), best_idx].unsqueeze(1)
+        chosen_logits = torch.logit(chosen)
+        return {
+            "oracle_dice": dice_coefficient(chosen_logits, masks).item(),
+            "oracle_iou": iou_coefficient(chosen_logits, masks).item(),
+            "oracle_hd": hausdorff_distance_metric(chosen_logits, masks, image_size=image_size),
+        }
+
+
 def run_epoch(model, loader, criterion, device, image_size, optimizer=None, return_features: bool = False):
     is_train = optimizer is not None
     model.train(is_train)
 
     total_loss = total_dice = total_iou = total_hd = 0.0
     total_seg_loss = total_token_loss = total_pixel_loss = total_slot_loss = 0.0
+    total_oracle_dice = total_oracle_iou = total_oracle_hd = 0.0
+    has_oracle = False
     for images, masks in loader:
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
@@ -73,6 +95,7 @@ def run_epoch(model, loader, criterion, device, image_size, optimizer=None, retu
             dice = dice_coefficient(logits, masks)
             iou = iou_coefficient(logits, masks)
             hd = hausdorff_distance_metric(logits, masks, image_size=image_size)
+            oracle = _best_slot_metrics(outputs, masks, image_size)
 
         if is_train:
             loss.backward()
@@ -87,9 +110,14 @@ def run_epoch(model, loader, criterion, device, image_size, optimizer=None, retu
         total_token_loss += _component_value(criterion, "token_contrast_loss", loss) * bs
         total_pixel_loss += _component_value(criterion, "pixel_contrast_loss", loss) * bs
         total_slot_loss += _component_value(criterion, "slot_proto_loss", loss) * bs
+        if oracle is not None:
+            has_oracle = True
+            total_oracle_dice += oracle["oracle_dice"] * bs
+            total_oracle_iou += oracle["oracle_iou"] * bs
+            total_oracle_hd += oracle["oracle_hd"] * bs
 
     n = len(loader.dataset)
-    return {
+    stats = {
         "loss": total_loss / n,
         "seg_loss": total_seg_loss / n,
         "token_contrast_loss": total_token_loss / n,
@@ -99,6 +127,13 @@ def run_epoch(model, loader, criterion, device, image_size, optimizer=None, retu
         "iou": total_iou / n,
         "hd": total_hd / n,
     }
+    if has_oracle:
+        stats.update({
+            "oracle_dice": total_oracle_dice / n,
+            "oracle_iou": total_oracle_iou / n,
+            "oracle_hd": total_oracle_hd / n,
+        })
+    return stats
 
 
 def main(cfg: TrainConfig):
@@ -123,6 +158,7 @@ def main(cfg: TrainConfig):
     print(f"arch={cfg.arch}  params trainable={n_train/1e6:.2f}M  total={n_total/1e6:.2f}M")
 
     use_contrastive = cfg.contrastive_enabled or cfg.arch == "fbsa_skip_contrastive"
+    use_feature_outputs = use_contrastive or cfg.return_features or cfg.arch.startswith("dinosaur")
     if use_contrastive:
         criterion = ContrastiveDiceBCELoss(
             bce_weight=cfg.bce_weight,
@@ -145,11 +181,11 @@ def main(cfg: TrainConfig):
     for epoch in range(1, cfg.epochs + 1):
         train_stats = run_epoch(
             model, train_loader, criterion, device, cfg.image_size, optimizer,
-            return_features=use_contrastive or cfg.return_features,
+            return_features=use_feature_outputs,
         )
         val_stats = run_epoch(
             model, val_loader, criterion, device, cfg.image_size,
-            return_features=use_contrastive or cfg.return_features,
+            return_features=use_feature_outputs,
         )
         scheduler.step()
         row = dict(
@@ -171,6 +207,11 @@ def main(cfg: TrainConfig):
             val_iou=val_stats["iou"],
             val_hd=val_stats["hd"],
         )
+        for key in ("oracle_dice", "oracle_iou", "oracle_hd"):
+            if key in train_stats:
+                row[f"train_{key}"] = train_stats[key]
+            if key in val_stats:
+                row[f"val_{key}"] = val_stats[key]
         history.append(row)
         print(row)
 

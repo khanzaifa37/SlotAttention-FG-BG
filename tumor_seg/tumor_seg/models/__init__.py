@@ -7,6 +7,7 @@ from .fbsa_segmenter import FBSASegmenter
 from .fbsa_fused_segmenter import FBSAFusedSegmenter
 from .fbsa_skip_segmenter import FBSASkipSegmenter
 from .fbsa_skip_contrastive_segmenter import FBSASkipContrastiveSegmenter
+from .dinosaur_segmenter import DinosaurReadoutSegmenter
 
 
 # Registry of available architectures. Add new entries here as we add classes
@@ -16,6 +17,8 @@ ARCH_REGISTRY = {
     "fbsa_fused": FBSAFusedSegmenter, # v2: + encoder feature fusion (option 1)
     "fbsa_skip": FBSASkipSegmenter,   # v3: + image-stem skip connections (option 2)
     "fbsa_skip_contrastive": FBSASkipContrastiveSegmenter, # v4: + contrastive heads
+    "dinosaur_readout": DinosaurReadoutSegmenter, # vanilla Slot Attention baseline
+    "dinosaur_vanilla": DinosaurReadoutSegmenter, # alias for reports/experiments
 }
 
 
