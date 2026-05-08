@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FBSA BRISC Poster</title>
+  <style>
+    @page {
+      size: 36in 24in;
+      margin: 0;
+    }
+
+    :root {
+      --blue: #3f83e8;
+      --ink: #111827;
+      --muted: #4b5563;
+      --line: #cbd5e1;
+      --soft: #f4f7fb;
+      --accent: #9a3324;
+      --green: #0f766e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #e5e7eb;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .poster {
+      width: 36in;
+      height: 24in;
+      margin: 0 auto;
+      background: white;
+      padding: 0.48in 0.5in 0.42in;
+      display: grid;
+      grid-template-rows: 1.82in 1fr;
+      gap: 0.34in;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: 1fr 5.2in;
+      gap: 0.4in;
+      align-items: start;
+    }
+
+    .title-band {
+      background: var(--blue);
+      color: white;
+      padding: 0.18in 0.26in;
+      min-height: 0.95in;
+      display: flex;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 35pt;
+      line-height: 1.04;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .authors {
+      margin-top: 0.18in;
+      padding-left: 0.25in;
+      font-size: 18pt;
+      line-height: 1.25;
+      color: #111;
+    }
+
+    .logo-box {
+      height: 1.1in;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left: 1px solid #9ca3af;
+      color: #111;
+      font-size: 18pt;
+      line-height: 1.15;
+      text-align: center;
+      margin-top: 0.06in;
+    }
+
+    .logo-box strong {
+      color: var(--accent);
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1.18fr 1fr;
+      gap: 0.55in;
+      min-height: 0;
+    }
+
+    .section {
+      margin-bottom: 0.28in;
+    }
+
+    .bar {
+      background: var(--blue);
+      color: white;
+      font-size: 25pt;
+      line-height: 1;
+      padding: 0.11in 0.18in 0.13in;
+      margin-bottom: 0.18in;
+      font-weight: 600;
+    }
+
+    .body {
+      font-size: 15.5pt;
+      line-height: 1.28;
+    }
+
+    .body p {
+      margin: 0 0 0.12in;
+    }
+
+    ul {
+      margin: 0.06in 0 0.12in 0.22in;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 0.06in;
+    }
+
+    .figure {
+      border: 2px solid var(--line);
+      background: var(--soft);
+      min-height: 1.65in;
+      padding: 0.12in;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14pt;
+      line-height: 1.2;
+    }
+
+    .caption {
+      font-size: 11.5pt;
+      color: var(--muted);
+      line-height: 1.22;
+      margin-top: 0.07in;
+    }
+
+    .wide-figure {
+      min-height: 2.05in;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.12in;
+      margin: 0.12in 0 0.1in;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.09in;
+      align-items: center;
+      margin: 0.08in 0 0.12in;
+    }
+
+    .step {
+      border: 2px solid var(--line);
+      border-radius: 0.05in;
+      background: white;
+      min-height: 0.86in;
+      padding: 0.08in;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 12.5pt;
+      line-height: 1.16;
+      font-weight: 700;
+    }
+
+    .arrow {
+      color: var(--blue);
+      font-size: 22pt;
+      font-weight: 700;
+      text-align: center;
+      margin-top: -0.02in;
+    }
+
+    .method-card {
+      background: var(--soft);
+      border-left: 0.08in solid var(--blue);
+      padding: 0.12in 0.15in;
+      margin-bottom: 0.15in;
+    }
+
+    .equation {
+      font-family: "Courier New", monospace;
+      font-size: 12.5pt;
+      background: white;
+      border: 1px solid var(--line);
+      padding: 0.08in;
+      margin-top: 0.08in;
+      white-space: nowrap;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.12in;
+      margin-bottom: 0.16in;
+    }
+
+    .metric {
+      background: var(--soft);
+      border: 2px solid var(--line);
+      padding: 0.12in;
+      min-height: 1.0in;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 11.5pt;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .metric .value {
+      margin-top: 0.04in;
+      font-size: 26pt;
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13pt;
+      margin: 0.08in 0 0.14in;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 0.07in 0.08in;
+      text-align: center;
+    }
+
+    th {
+      background: var(--blue);
+      color: white;
+      font-weight: 700;
+    }
+
+    td:first-child,
+    th:first-child {
+      text-align: left;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.12in;
+      margin-bottom: 0.16in;
+    }
+
+    .result-grid .figure {
+      min-height: 1.45in;
+      font-size: 12pt;
+    }
+
+    .small {
+      font-size: 12.5pt;
+      color: var(--muted);
+      line-height: 1.25;
+    }
+
+    .footer-note {
+      font-size: 10.5pt;
+      color: var(--muted);
+      margin-top: 0.08in;
+    }
+  </style>
+</head>
+<body>
+  <main class="poster">
+    <header class="top">
+      <div>
+        <div class="title-band">
+          <h1>Foreground-Background Slot Attention for Brain Tumor Segmentation</h1>
+        </div>
+        <div class="authors">
+          Naveen J. &nbsp;&nbsp; CS 682 Neural Networks &nbsp;&nbsp; UMass Amherst
+        </div>
+      </div>
+      <div class="logo-box">
+        UMass<strong>Amherst</strong><br>
+        Manning College of Information<br>
+        &amp; Computer Sciences
+      </div>
+    </header>
+
+    <section class="columns">
+      <div>
+        <section class="section">
+          <div class="bar">Overview</div>
+          <div class="figure wide-figure">
+            Replace with teaser panel:<br>
+            MRI slice | ground truth | prediction
+          </div>
+          <div class="caption">
+            The task is binary tumor segmentation from BRISC-2025 brain MRI slices.
+          </div>
+          <div class="body">
+            <ul>
+              <li><strong>Goal:</strong> segment tumor regions accurately while keeping the model interpretable through foreground/background slots.</li>
+              <li><strong>Challenge:</strong> tumors vary strongly in shape, size, and contrast across glioma, meningioma, and pituitary cases.</li>
+              <li><strong>Key idea:</strong> use DINO ViT patch features, then add slot-based foreground/background grouping before decoding a mask.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Dataset &amp; Evaluation</div>
+          <div class="mini-grid">
+            <div class="figure">
+              BRISC-2025<br>
+              train/test MRI slices
+            </div>
+            <div class="figure">
+              Binary masks<br>
+              resized to 224 x 224
+            </div>
+          </div>
+          <div class="body">
+            <ul>
+              <li><strong>Input:</strong> RGB-converted MRI images normalized with ImageNet statistics for DINO.</li>
+              <li><strong>Metrics:</strong> Dice, IoU, and Hausdorff distance in pixels.</li>
+              <li><strong>Training:</strong> Dice + BCE loss, Adam optimizer, cosine learning rate schedule.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Problem Framing</div>
+          <div class="body">
+            <p>
+              Plain decoders can achieve strong masks, but they do not expose how features are grouped into foreground and background. Slot attention gives a compact grouping mechanism that can be visualized and inspected.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section class="section">
+          <div class="bar">Method</div>
+          <div class="pipeline">
+            <div class="step">MRI<br>224 x 224</div>
+            <div class="arrow">></div>
+            <div class="step">Frozen<br>DINO ViT-S/16</div>
+            <div class="arrow">></div>
+            <div class="step">Patch tokens<br>14 x 14</div>
+          </div>
+          <div class="pipeline">
+            <div class="step">Linear<br>projection</div>
+            <div class="arrow">></div>
+            <div class="step">2-slot<br>attention</div>
+            <div class="arrow">></div>
+            <div class="step">Upsampling<br>decoder</div>
+          </div>
+
+          <div class="method-card body">
+            <strong>Important correction:</strong> the final model keeps the original DINO patch tokens and concatenates them with slot-conditioned context. This avoids the information bottleneck from decoding only a single foreground slot.
+            <div class="equation">feat = concat(tokens, attn @ slots, attn)</div>
+          </div>
+
+          <div class="mini-grid">
+            <div>
+              <div class="figure">
+                Add architecture diagram
+              </div>
+              <div class="caption">Frozen encoder extracts semantic patch features.</div>
+            </div>
+            <div>
+              <div class="figure">
+                Add slot attention map
+              </div>
+              <div class="caption">Slots separate tumor-like and background-like regions.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Ablation</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Val Dice</th>
+                <th>Val IoU</th>
+                <th>Val HD</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Original slot bottleneck</td>
+                <td>0.616</td>
+                <td>0.467</td>
+                <td>19.76</td>
+              </tr>
+              <tr>
+                <td>Fused DINO + slots</td>
+                <td><strong>0.785</strong></td>
+                <td><strong>0.678</strong></td>
+                <td><strong>16.58</strong></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="body">
+            <ul>
+              <li>Preserving patch tokens improves Dice by about 17 points over the slot-only decoder.</li>
+              <li>The remaining error is mostly boundary detail, limited by the 14 x 14 ViT patch grid.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Implementation Notes</div>
+          <div class="body">
+            <ul>
+              <li>DINO encoder is frozen, reducing trainable parameters and training cost.</li>
+              <li>Slot attention uses two learned slots for foreground/background grouping.</li>
+              <li>Decoder upsamples from 14 x 14 patch features to a 224 x 224 logit mask.</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section class="section">
+          <div class="bar">Results</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="label">Validation Dice</div>
+              <div class="value">0.785</div>
+            </div>
+            <div class="metric">
+              <div class="label">Validation IoU</div>
+              <div class="value">0.678</div>
+            </div>
+            <div class="metric">
+              <div class="label">Validation HD</div>
+              <div class="value">16.58</div>
+            </div>
+            <div class="metric">
+              <div class="label">Train Dice</div>
+              <div class="value">0.795</div>
+            </div>
+          </div>
+
+          <div class="result-grid">
+            <div class="figure">Case 1<br>image | gt | pred</div>
+            <div class="figure">Case 2<br>image | gt | pred</div>
+            <div class="figure">Case 3<br>image | gt | pred</div>
+            <div class="figure">Case 4<br>image | gt | pred</div>
+          </div>
+          <div class="caption">
+            Replace these boxes with qualitative predictions from `03_eval_viz.ipynb`.
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Training Curve</div>
+          <div class="figure wide-figure">
+            Add plot:<br>
+            train/val Dice across epochs
+          </div>
+          <div class="caption">
+            Final reported epoch: train Dice 0.795, val Dice 0.785, val HD 16.58 px.
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="bar">Conclusion</div>
+          <div class="body">
+            <ul>
+              <li>Foreground/background slot attention can improve an MRI segmentation decoder when it complements, rather than replaces, DINO patch tokens.</li>
+              <li>The fused model generalizes closely to training performance, suggesting the main gains come from better representation rather than memorization.</li>
+              <li>Future work: add high-resolution skip features, tune thresholding, and compare against a stronger U-Net under matched training settings.</li>
+            </ul>
+          </div>
+          <div class="footer-note">
+            Update title, authors, and figures before printing. Use Chrome print settings: paper size 36 x 24 in, landscape, margins none, background graphics on.
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

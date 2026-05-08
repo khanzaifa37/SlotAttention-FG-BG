@@ -60,10 +60,14 @@ class SkipUpsampler(nn.Module):
             nn.Conv2d(16, out_channels, kernel_size=1),
         )
 
-    def forward(self, x, skips):
+    def forward(self, x, skips, return_features: bool = False):
         s28, s56, s112 = skips
         x = self.up1(x, s28)
         x = self.up2(x, s56)
+        decoder_feat = x
         x = self.up3(x, s112)
         x = self.up4(x)
-        return self.head(x)
+        logits = self.head(x)
+        if return_features:
+            return logits, decoder_feat
+        return logits

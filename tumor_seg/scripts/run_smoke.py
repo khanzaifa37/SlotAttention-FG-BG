@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tumor_seg.config import TrainConfig
-from tumor_seg.losses import DiceBCELoss
+from tumor_seg.losses import ContrastiveDiceBCELoss, DiceBCELoss
 from tumor_seg.models import build_model
 
 
@@ -36,6 +36,21 @@ def check_shapes(model, device):
     print(f"[1/3] shapes OK  -> {tuple(out.shape)}")
 
 
+def check_feature_dict(model, device):
+    model.eval()
+    with torch.no_grad():
+        out = model(torch.randn(2, 3, 224, 224, device=device), return_features=True)
+    assert out["logits"].shape == (2, 1, 224, 224)
+    assert out["tokens"].shape == (2, 196, 256)
+    assert out["slots"].shape == (2, 2, 256)
+    assert out["attn"].shape == (2, 196, 2)
+    assert out["decoder_feat"].shape == (2, 64, 56, 56)
+    assert out["token_emb"].shape == (2, 196, 128)
+    assert out["slot_emb"].shape == (2, 2, 128)
+    assert out["pixel_emb"].shape == (2, 64, 56, 56)
+    print("[1b] feature dict OK")
+
+
 def check_freeze(model):
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     n_total = sum(p.numel() for p in model.parameters())
@@ -44,7 +59,7 @@ def check_freeze(model):
     print(f"[2/3] freeze OK  -> {msg}")
 
 
-def check_grad_flow(model, device):
+def check_grad_flow(model, device, contrastive: bool = False):
     """Verify gradients reach every trainable parameter group.
 
     Forward + backward on synthetic data, then check that the L2 norm of the
@@ -57,12 +72,16 @@ def check_grad_flow(model, device):
     targets = (torch.rand(2, 1, 224, 224, device=device) > 0.5).float()
 
     model.train()
-    crit = DiceBCELoss()
-    logits = model(images)
-    loss = crit(logits, targets)
+    crit = ContrastiveDiceBCELoss() if contrastive else DiceBCELoss()
+    outputs = model(images, return_features=True) if contrastive else model(images)
+    loss = crit(outputs, targets)
     loss.backward()
 
     groups = {"proj": "proj", "slot_attn": "slot_attn", "upsampler": "upsampler"}
+    if hasattr(model, "image_stem"):
+        groups["image_stem"] = "image_stem"
+    if contrastive:
+        groups.update({"token_head": "token_head", "slot_head": "slot_head", "pixel_head": "pixel_head"})
     seen = {k: False for k in groups}
     bad = []
     for name, p in model.named_parameters():
@@ -93,7 +112,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--arch", default="fbsa",
-                        help="Architecture key from ARCH_REGISTRY (fbsa, fbsa_fused).")
+                        help="Architecture key from ARCH_REGISTRY.")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -103,8 +122,10 @@ def main():
     model = build_model(cfg).to(device)
 
     check_shapes(model, device)
+    if args.arch == "fbsa_skip_contrastive":
+        check_feature_dict(model, device)
     check_freeze(model)
-    check_grad_flow(model, device)
+    check_grad_flow(model, device, contrastive=args.arch == "fbsa_skip_contrastive")
     print("\nAll smoke checks passed.")
 
 

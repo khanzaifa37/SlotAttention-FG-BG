@@ -13,6 +13,8 @@ class TrainConfig:
     arch: str = "fbsa"          # see ARCH_REGISTRY in models/__init__.py
                                  # "fbsa"        — v1: slot signal only
                                  # "fbsa_fused"  — v2: slot + encoder feature fusion
+                                 # "fbsa_skip"   - v3: + image-stem skip connections
+                                 # "fbsa_skip_contrastive" - v4: + contrastive losses
 
     encoder: str = "dino_vits16"
     encoder_dim: int = 384
@@ -24,6 +26,14 @@ class TrainConfig:
     slot_hidden: int = 512
 
     bce_weight: float = 0.5
+    contrastive_enabled: bool = False
+    lambda_token: float = 0.05
+    lambda_pixel: float = 0.05
+    lambda_slot: float = 0.02
+    contrastive_temperature: float = 0.1
+    pixel_samples_fg: int = 128
+    pixel_samples_bg: int = 128
+    return_features: bool = False
     num_workers: int = 2
     train_limit: int = None
     val_limit: int = None
