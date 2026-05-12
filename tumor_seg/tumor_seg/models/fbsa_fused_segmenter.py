@@ -44,6 +44,11 @@ class FBSAFusedSegmenter(nn.Module):
             nn.Linear(encoder_dim, slot_dim),
             nn.LayerNorm(slot_dim),
         )
+
+        # Using attention mechanism, token keys and slot queries
+        # update each slot as weighted sum of token values
+        # After this the features are divided into 2 slots, 
+        # 0=foreground (tumor), 1=background
         self.slot_attn = SlotAttention(
             num_slots=num_slots, slot_dim=slot_dim,
             n_iters=slot_iters, hidden_dim=slot_hidden,
@@ -54,14 +59,18 @@ class FBSAFusedSegmenter(nn.Module):
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         B = image.shape[0]
         tokens = self.encoder(image)
+        # Projecting the ViT patch tokens into slot attention dimensions
+        # 256-dim feature vector, with LayerNorm
         tokens = self.proj(tokens)                   # [B, N, D]
 
         slots, attn = self.slot_attn(tokens)         # [B, K, D], [B, N, K]
 
         fg_slot = slots[:, 0:1, :]                   # [B, 1, D]
         fg_attn = attn[:, :, 0:1]                    # [B, N, 1]
+        # Build a feature using FG slot vector and attention vector only
         slot_feat = fg_attn * fg_slot                # [B, N, D]
-
+        
+        # Along with attention features add the ViT Tokens to boost performance
         combined = torch.cat([slot_feat, tokens], dim=-1)  # [B, N, 2D]
 
         N = combined.shape[1]

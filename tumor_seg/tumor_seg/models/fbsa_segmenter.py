@@ -52,6 +52,8 @@ class FBSASegmenter(nn.Module):
         fg_slot = slots[:, 0:1, :]
         fg_attn = attn[:, :, 0:1]
         feat = fg_attn * fg_slot
+        # Issue here: it only received one global heatmap, and not per-patch appearance.
+
 
         N = feat.shape[1]
         H = W = int(math.sqrt(N))
